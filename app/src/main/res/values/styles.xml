@@ -1,0 +1,3 @@
+<resources>
+    <style name="ShapeAppearance.TechStore.Profile" parent="ShapeAppearance.Material3.Corner.Medium" />
+</resources>
