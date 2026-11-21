@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "ADMIN";
+    }
+
+    function isSeller() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "SELLER";
+    }
+
+    function validProduct(data) {
+      return data.precio is number
+        && data.precio >= 0
+        && data.stock is int
+        && data.stock >= 0;
+    }
+
+    match /users/{uid} {
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role in ["BUYER", "SELLER"]
+        && request.resource.data.activo == true;
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow update: if isAdmin()
+        || (signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.activo == resource.data.activo);
+      allow delete: if isAdmin() && request.auth.uid != uid;
+
+      match /cart/{itemId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    match /products/{productId} {
+      allow read: if resource.data.activo == true
+        || isAdmin()
+        || (isSeller() && resource.data.sellerId == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSeller()
+          && request.resource.data.sellerId == request.auth.uid
+          && validProduct(request.resource.data));
+      allow update: if isAdmin()
+        || (isSeller()
+          && resource.data.sellerId == request.auth.uid
+          && request.resource.data.sellerId == resource.data.sellerId
+          && validProduct(request.resource.data));
+      allow delete: if isAdmin()
+        || (isSeller() && resource.data.sellerId == request.auth.uid);
+    }
+
+    match /orders/{orderId} {
+      allow create: if signedIn()
+        && request.resource.data.buyerId == request.auth.uid
+        && request.resource.data.estado == "PENDIENTE"
+        && request.resource.data.metodoPago == "DEMO";
+      allow read: if signedIn()
+        && (resource.data.buyerId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+  }
+}

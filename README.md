@@ -1,17 +1,30 @@
 # TechStore
 
-Aplicación Android nativa en Kotlin para una tienda de tecnología. Este repositorio contiene el scaffold inicial y las pantallas compartidas hasta ahora; catálogo, pedidos, administración y vendedor se irán completando conforme se definan sus archivos.
+Aplicación Android nativa en Kotlin con autenticación Firebase y flujos separados para administración, vendedor y comprador.
+
+## Módulos
+
+- Autenticación por correo y contraseña con acceso biométrico para una sesión existente.
+- Administración de usuarios.
+- Gestión de productos para vendedores.
+- Catálogo, carrito y órdenes para compradores.
+- Selección de ubicación con Google Maps.
+- Registro de órdenes de demostración: no procesa ni confirma pagos.
 
 ## Requisitos
 
-- Android Studio con JDK 17
-- Android SDK 34
-- Un proyecto Firebase con Authentication, Cloud Firestore y Cloud Storage habilitados
+- Android Studio Hedgehog o superior con JDK 17.
+- Android SDK 34.
+- Proyecto Firebase con Authentication, Firestore y Storage habilitados.
+- API key de Google Maps restringida para el paquete `com.techstore.app`.
 
-## Configuración Firebase
+## Configuración
 
-Descarga `google-services.json` desde la configuración de tu app Android Firebase (`com.techstore.app`) y colócalo en `app/google-services.json`. Ese archivo está excluido de Git.
+1. Añade el `google-services.json` de Firebase en `app/`. Está excluido de Git.
+2. Añade `googleMapsApiKey=TU_CLAVE_RESTRINGIDA` a `local.properties` para configurar Google Maps. Ese archivo está excluido de Git; restringe la clave al paquete y certificado de firma de la app.
+3. Configura y despliega `firestore.rules` y `storage.rules` con Firebase CLI.
+4. Crea la cuenta administradora desde una herramienta de confianza (Firebase Admin SDK o consola); el registro público solo permite roles de comprador o vendedor.
 
-## Compilar
+Las reglas de Firestore consideran administrador a una cuenta con `role: "ADMIN"` que haya sido creada de forma confiable. No permitas que el cliente asigne ese rol.
 
-Abre el proyecto en Android Studio y sincroniza Gradle. Sin `google-services.json`, el código puede compilar, pero las funciones Firebase no estarán disponibles al ejecutar la app.
+La eliminación desde el panel elimina el perfil de Firestore; borrar también la cuenta de Firebase Authentication requiere una función backend con Firebase Admin SDK.

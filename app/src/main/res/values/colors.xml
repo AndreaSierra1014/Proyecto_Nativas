@@ -1,12 +1,9 @@
 <resources>
-    <color name="primary">#1A56DB</color>
-    <color name="primary_dark">#153F9E</color>
-    <color name="accent">#2563EB</color>
-    <color name="bg">#F5F7FB</color>
-    <color name="surface">#FFFFFF</color>
-    <color name="text_primary">#0F172A</color>
-    <color name="text_secondary">#64748B</color>
-    <color name="success">#16A34A</color>
-    <color name="warning">#D97706</color>
-    <color name="danger">#DC2626</color>
+    <color name="primary">#FF6750A4</color>
+    <color name="onPrimary">#FFFFFFFF</color>
+    <color name="surface">#FFFFFBFE</color>
+    <color name="background">#FFFFFBFE</color>
+    <color name="onSurface">#FF1C1B1F</color>
+    <color name="error">#FFB3261E</color>
+    <color name="danger">#FFB3261E</color>
 </resources>

@@ -1,65 +1,56 @@
 package com.techstore.app.data.repository
 
 import android.net.Uri
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.firestore.ktx.snapshots
-import com.google.firebase.ktx.Firebase
-import com.google.firebase.storage.ktx.storage
-import com.techstore.app.data.model.ProductModel
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
+import com.techstore.app.data.model.Product
 import com.techstore.app.util.Constants
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
-class ProductRepository {
+class ProductRepository(
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val storage: FirebaseStorage = FirebaseStorage.getInstance()
+) {
 
-    private val db = Firebase.firestore
-    private val storage = Firebase.storage
+    suspend fun listAll(): List<Product> =
+        db.collection(Constants.COLLECTION_PRODUCTS).get().await().toObjects(Product::class.java)
 
-    fun observeActiveProducts(): Flow<List<ProductModel>> =
-        db.collection(Constants.COL_PRODUCTS)
-            .whereEqualTo("status", "active")
-            .snapshots()
-            .map { snapshot -> snapshot.toObjects(ProductModel::class.java) }
+    suspend fun listActive(): List<Product> =
+        db.collection(Constants.COLLECTION_PRODUCTS)
+            .whereEqualTo("activo", true)
+            .get().await().toObjects(Product::class.java)
 
-    fun observeBySeller(sellerId: String): Flow<List<ProductModel>> =
-        db.collection(Constants.COL_PRODUCTS)
+    suspend fun listBySeller(sellerId: String): List<Product> =
+        db.collection(Constants.COLLECTION_PRODUCTS)
             .whereEqualTo("sellerId", sellerId)
-            .snapshots()
-            .map { snapshot -> snapshot.toObjects(ProductModel::class.java) }
+            .get().await().toObjects(Product::class.java)
 
-    fun observeAll(): Flow<List<ProductModel>> =
-        db.collection(Constants.COL_PRODUCTS)
-            .snapshots()
-            .map { snapshot -> snapshot.toObjects(ProductModel::class.java) }
-
-    suspend fun getById(id: String): ProductModel? =
-        db.collection(Constants.COL_PRODUCTS).document(id).get().await()
-            .toObject(ProductModel::class.java)
-
-    suspend fun save(product: ProductModel, imageUri: Uri?): String {
-        val id = product.id.ifBlank {
-            db.collection(Constants.COL_PRODUCTS).document().id
-        }
-        val imageUrl =
-            if (imageUri != null) uploadImage(imageUri, id) else product.imageUrl
-
-        db.collection(Constants.COL_PRODUCTS).document(id)
-            .set(product.copy(id = id, imageUrl = imageUrl)).await()
-        return id
+    suspend fun create(product: Product, imageUri: Uri?): Product {
+        val id = db.collection(Constants.COLLECTION_PRODUCTS).document().id
+        val url = imageUri?.let { uploadImage(it, product.sellerId) } ?: product.imagenUrl
+        val savedProduct = product.copy(id = id, imagenUrl = url)
+        db.collection(Constants.COLLECTION_PRODUCTS).document(id).set(savedProduct).await()
+        return savedProduct
     }
 
-    suspend fun delete(product: ProductModel) {
-        if (product.imageUrl.isNotBlank()) {
-            storage.getReferenceFromUrl(product.imageUrl).delete().await()
-        }
-        db.collection(Constants.COL_PRODUCTS).document(product.id).delete().await()
+    suspend fun update(product: Product, imageUri: Uri?) {
+        val url = imageUri?.let { uploadImage(it, product.sellerId) } ?: product.imagenUrl
+        db.collection(Constants.COLLECTION_PRODUCTS).document(product.id)
+            .set(product.copy(imagenUrl = url)).await()
     }
 
-    private suspend fun uploadImage(uri: Uri, productId: String): String {
-        val ref = storage.reference
-            .child("products/$productId/${UUID.randomUUID()}.jpg")
+    suspend fun getById(id: String): Product? =
+        db.collection(Constants.COLLECTION_PRODUCTS).document(id).get().await()
+            .toObject(Product::class.java)
+
+    suspend fun delete(id: String) {
+        db.collection(Constants.COLLECTION_PRODUCTS).document(id).delete().await()
+    }
+
+    private suspend fun uploadImage(uri: Uri, sellerId: String): String {
+        require(sellerId.isNotBlank()) { "El producto debe tener un vendedor asignado." }
+        val ref = storage.reference.child("products/$sellerId/${UUID.randomUUID()}.jpg")
         ref.putFile(uri).await()
         return ref.downloadUrl.await().toString()
     }

@@ -2,105 +2,93 @@ package com.techstore.app.ui.auth
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.google.firebase.FirebaseException
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.ktx.Firebase
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textview.MaterialTextView
-import com.techstore.app.R
-import com.techstore.app.data.local.SessionManager
+import com.google.firebase.auth.FirebaseAuth
+import com.techstore.app.MainActivity
 import com.techstore.app.data.repository.AuthRepository
-import com.techstore.app.ui.main.MainActivity
-import com.techstore.app.util.showBiometricPrompt
+import com.techstore.app.databinding.ActivityLoginBinding
 import kotlinx.coroutines.launch
 
 class LoginActivity : AppCompatActivity() {
 
-    private lateinit var authRepository: AuthRepository
-    private lateinit var sessionManager: SessionManager
+    private lateinit var binding: ActivityLoginBinding
+    private val repository = AuthRepository()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_login)
+        binding = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        authRepository = AuthRepository()
-        sessionManager = SessionManager(this)
-
-        val biometricButton = findViewById<MaterialButton>(R.id.btnBiometric)
-        biometricButton.visibility =
-            if (sessionManager.biometricEnabled && Firebase.auth.currentUser != null) {
-                View.VISIBLE
-            } else {
-                View.GONE
-            }
-
-        findViewById<MaterialButton>(R.id.btnLogin).setOnClickListener { login() }
-        biometricButton.setOnClickListener {
-            showBiometricPrompt(
-                context = this,
-                title = "Iniciar sesión con biometría",
-                subtitle = "Usa la biometría configurada en tu dispositivo",
-                negativeButtonText = "Cancelar",
-                onAuthSuccess = {
-                    val user = Firebase.auth.currentUser
-                    if (sessionManager.biometricEnabled && user != null) {
-                        sessionManager.uid = user.uid
-                        startActivity(Intent(this, MainActivity::class.java))
-                        finish()
-                    } else {
-                        Toast.makeText(
-                            this,
-                            "Inicia sesión con tu correo y contraseña.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                },
-                onAuthError = { error ->
-                    Toast.makeText(this, "Error biométrico: $error", Toast.LENGTH_LONG).show()
-                }
-            )
-        }
-
-        findViewById<MaterialTextView>(R.id.tvGoToRegister).setOnClickListener {
+        binding.btnLogin.setOnClickListener { login() }
+        binding.tvRegister.setOnClickListener {
             startActivity(Intent(this, RegisterActivity::class.java))
         }
-        findViewById<MaterialTextView>(R.id.tvRecoverPassword).setOnClickListener {
-            startActivity(Intent(this, RecoverPasswordActivity::class.java))
+        binding.tvForgot.setOnClickListener { resetPassword() }
+        binding.btnBiometric.setOnClickListener {
+            if (!BiometricHelper.canAuthenticate(this)) {
+                Toast.makeText(this, "Biometría no disponible.", Toast.LENGTH_SHORT).show()
+            } else if (FirebaseAuth.getInstance().currentUser == null) {
+                Toast.makeText(
+                    this,
+                    "Primero inicia sesión con tu correo y contraseña.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                BiometricHelper.prompt(this) {
+                    startActivity(Intent(this, MainActivity::class.java))
+                    finish()
+                }
+            }
         }
     }
 
     private fun login() {
-        val email = findViewById<TextInputEditText>(R.id.editTextEmail)
-            .text?.toString()?.trim().orEmpty()
-        val password = findViewById<TextInputEditText>(R.id.editTextPassword)
-            .text?.toString().orEmpty()
-
+        val email = binding.etEmail.text?.toString()?.trim().orEmpty()
+        val password = binding.etPassword.text?.toString().orEmpty()
         if (email.isBlank() || password.isBlank()) {
-            Toast.makeText(this, "Completa todos los campos.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Completa los campos.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        binding.btnLogin.isEnabled = false
+        lifecycleScope.launch {
+            try {
+                repository.login(email, password)
+                startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                finish()
+            } catch (error: Exception) {
+                Toast.makeText(
+                    this@LoginActivity,
+                    "No se pudo iniciar sesión: ${error.localizedMessage}",
+                    Toast.LENGTH_LONG
+                ).show()
+            } finally {
+                binding.btnLogin.isEnabled = true
+            }
+        }
+    }
+
+    private fun resetPassword() {
+        val email = binding.etEmail.text?.toString()?.trim().orEmpty()
+        if (email.isBlank()) {
+            Toast.makeText(this, "Ingresa tu correo primero.", Toast.LENGTH_SHORT).show()
             return
         }
 
         lifecycleScope.launch {
             try {
-                val result = authRepository.login(email, password)
-                val user = checkNotNull(result.user) {
-                    "Firebase Auth devolvió un resultado sin usuario."
-                }
-                sessionManager.uid = user.uid
-                sessionManager.email = user.email ?: email
-                sessionManager.role = null
-                sessionManager.fullName = null
-                startActivity(Intent(this@LoginActivity, MainActivity::class.java))
-                finish()
-            } catch (e: FirebaseException) {
+                repository.resetPassword(email)
                 Toast.makeText(
                     this@LoginActivity,
-                    "No se pudo iniciar sesión: ${e.localizedMessage}",
+                    "Si existe una cuenta con ese correo, recibirás un enlace.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (error: Exception) {
+                Toast.makeText(
+                    this@LoginActivity,
+                    "No se pudo enviar el correo: ${error.localizedMessage}",
                     Toast.LENGTH_LONG
                 ).show()
             }
